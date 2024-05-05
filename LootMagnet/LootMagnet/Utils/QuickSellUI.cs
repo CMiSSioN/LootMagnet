@@ -206,11 +206,15 @@ namespace LootMagnet.Utils
                 Mod.Log.Warn?.Write($"Can't find matching item for {item.salvageDef.Description.Id}");
                 return;
             }
-            var cost = item.salvageDef.Description.Cost;
+            var cost = item.salvageDef.GetDefSellCost();
             var sellCost = Mathf.FloorToInt(cost * UnityGameInstance.BattleTechGame.Simulation.Constants.Finances.ShopSellModifier);
-
-            Mod.Log.Info?.Write($"Selling {matchingItem?.GUID} worth {item.salvageDef.Description.Cost}" +
-                          $" x {UnityGameInstance.BattleTechGame.Simulation.Constants.Finances.ShopSellModifier} shopSellModifier = {item.salvageDef.Description.Cost * UnityGameInstance.BattleTechGame.Simulation.Constants.Finances.ShopSellModifier}");
+            if(sellCost <= 0)
+            {
+                GenericPopupBuilder.Create(GenericPopupType.Warning, "YOU CAN'T SELL THIS").AddFader().Render();
+                return;
+            }
+            Mod.Log.Info?.Write($"Selling {matchingItem?.GUID} worth {item.salvageDef.GetDefSellCost()}" +
+                          $" x {UnityGameInstance.BattleTechGame.Simulation.Constants.Finances.ShopSellModifier} shopSellModifier = {sellCost}");
 
             UnityGameInstance.BattleTechGame.Simulation.AddFunds(sellCost, "LootMagnet", false, true);
             UnityGameInstance.BattleTechGame.Simulation.RoomManager.CurrencyWidget.UpdateMoney();
@@ -236,7 +240,16 @@ namespace LootMagnet.Utils
             reward.AllSalvageControllers.Remove(item);
             item.Pool();
             matchingItem.Count -= 1;
-            OnSellItems(item.salvageDef.Description.Id, item.salvageDef.ComponentType, 1, sellCost);
+            if (item.salvageDef.Type == SalvageDef.SalvageType.CHASSIS)
+            {
+                OnSellItems(item.salvageDef.Description.Id, ComponentType.MechPart, 
+                    UnityGameInstance.BattleTechGame.Simulation.Constants.Story.DefaultMechPartMax, 
+                    Mathf.FloorToInt((float)sellCost / (float)UnityGameInstance.BattleTechGame.Simulation.Constants.Story.DefaultMechPartMax));
+            }
+            else
+            {
+                OnSellItems(item.salvageDef.Description.Id, item.salvageDef.ComponentType, 1, sellCost);
+            }
         }
         public static void SellItem(this AAR_SalvageScreen salvageScreen, ListElementController_BASE_NotListView item)
         {
@@ -415,7 +428,7 @@ namespace LootMagnet.Utils
                 var cost = owner.salvageDef.GetDefSellCost() * count;
                 var sellCost = Mathf.FloorToInt(cost * UnityGameInstance.BattleTechGame.Simulation.Constants.Finances.ShopSellModifier);
                 this.priceText.SetText("{0}", sellCost);
-                this.priceElement.SetActive(sellCost > 0f);
+                this.priceElement.SetActive(sellCost > 0);
             }catch(Exception e)
             {
                 UIManager.logger.LogException(e);
